@@ -57,11 +57,11 @@ func connectToDB() (*sql.DB, error) {
 		connectionString += " sslmode=disable"
 	}
 
-	// Connect to the database
 	return sql.Open("postgres", connectionString)
 }
 
 func main() {
+	fmt.Println("Started user-history-module execution at ", time.Now().UTC().Format(DATE_FORMAT))
 	db, err := connectToDB()
 
 	if err != nil {
@@ -69,18 +69,12 @@ func main() {
 		return
 	}
 	defer db.Close()
-
-	// Ping the database to check the connection
-	err = db.Ping()
-	if err != nil {
-		fmt.Println("Error pinging the database:", err)
-		return
-	}
-	fmt.Println("Connected to the database!")
+	db.SetMaxOpenConns(90) // Set maximum number of open connections
+	db.SetMaxIdleConns(10) // Set maximum number of idle connections
 
 	userRows, err := db.Query("SELECT * FROM \"user\"")
 	if err != nil {
-		fmt.Println("Error executing query:", err)
+		fmt.Println("Error executing user query:", err)
 		return
 	}
 
@@ -103,40 +97,42 @@ func main() {
 
 	s3Client := s3.NewFromConfig(cfg)
 
-	saveQueryResults(userRows, db, s3Client)
+	saveApiCallsFilesForAllUsers(userRows, db, s3Client)
 }
 
-func saveQueryResults(userRows *sql.Rows, db *sql.DB, s3Client *s3.Client) {
+func saveApiCallsFilesForAllUsers(userRows *sql.Rows, db *sql.DB, s3Client *s3.Client) {
 	defer userRows.Close()
 	wg := new(sync.WaitGroup)
 
 	for userRows.Next() {
 		var user User
 		if err := userRows.Scan(&user.id, &user.name); err != nil {
-			fmt.Println("Error scanning row:", err)
+			fmt.Println("Error scanning user row:", err)
 			return
 		}
 
 		wg.Add(1)
-		go printApiCalls(user, wg, db, s3Client)
+		go saveApiCallsFileForUser(user, wg, db, s3Client)
 	}
 
 	wg.Wait()
 
 	if err := userRows.Err(); err != nil {
-		fmt.Println("Error iterating over userRows:", err)
+		fmt.Println("Error iterating over user rows:", err)
 		return
 	}
+
+	fmt.Println("Ended user-history-module execution at ", time.Now().UTC().Format(DATE_FORMAT))
 }
 
-func printApiCalls(user User, wg *sync.WaitGroup, db *sql.DB, s3Client *s3.Client) {
+func saveApiCallsFileForUser(user User, wg *sync.WaitGroup, db *sql.DB, s3Client *s3.Client) {
 	defer wg.Done()
 	filename := fmt.Sprintf("user_%d_%s.csv", user.id, user.name)
 	bucketname := "user-history"
 
 	rows, err := db.Query(fmt.Sprintf("SELECT id, endpoint, call_timestamp as callTimestamp FROM api_calls where user_id = %d", user.id))
 	if err != nil {
-		fmt.Println("Error executing query:", err)
+		fmt.Printf("Error executing query api_calls for user %d: %v\n", user.id, err)
 		return
 	}
 
@@ -146,21 +142,21 @@ func printApiCalls(user User, wg *sync.WaitGroup, db *sql.DB, s3Client *s3.Clien
 	csvwriter := csv.NewWriter(&content)
 
 	if err := csvwriter.Write(getCsvHeader()); err != nil {
-		fmt.Println("Error writing header to file:", err)
+		fmt.Printf("Error writing header to file for user %d: %v\n", user.id, err)
 		return
 	}
 
 	for rows.Next() {
 		var apiCall ApiCall
 		if err := rows.Scan(&apiCall.id, &apiCall.endpoint, &apiCall.callTimestamp); err != nil {
-			fmt.Println("Error scanning row:", err)
+			fmt.Printf("Error scanning row for user %d: %v\n", user.id, err)
 			return
 		}
 
 		row := []string{strconv.Itoa(apiCall.id), apiCall.endpoint, apiCall.callTimestamp.UTC().Format(DATE_FORMAT)}
 
 		if err := csvwriter.Write(row); err != nil {
-			fmt.Println("Error writing record to file:", err)
+			fmt.Printf("Error writing record to file for user %d: %v\n", user.id, err)
 			return
 		}
 	}
@@ -170,7 +166,7 @@ func printApiCalls(user User, wg *sync.WaitGroup, db *sql.DB, s3Client *s3.Clien
 		Body:   bytes.NewReader(content.Bytes()),
 	})
 	if err != nil {
-		fmt.Println("Unable to upload CSV buffer to S3:", err)
+		fmt.Printf("Unable to upload CSV buffer to S3 for user %d: %v\n", user.id, err)
 		return
 	}
 }

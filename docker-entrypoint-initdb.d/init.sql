@@ -12,7 +12,6 @@ $$
 DECLARE
 	user_record RECORD;
 	 endpoint_names VARCHAR[] := ARRAY['/api/endpoint1' , '/api/endpoint2' , '/api/endpoint3' , '/api/endpoint4' , '/api/endpoint5'];
-	i INT;
 BEGIN
 	FOR user_record IN SELECT id FROM "user" LOOP
 	    FOR i IN 1..5 LOOP
@@ -25,34 +24,17 @@ END;
 $$
 LANGUAGE plpgsql; 
 
-INSERT INTO
-    "user" (name)
-VALUES ('A'),
-    ('B'),
-    ('C'),
-    ('D'),
-    ('E'),
-    ('F'),
-    ('G'),
-    ('H'),
-    ('I'),
-    ('J'),
-    ('K'),
-    ('L'),
-    ('M'),
-    ('N'),
-    ('Ñ'),
-    ('O'),
-    ('P'),
-    ('Q'),
-    ('R'),
-    ('S'),
-    ('T'),
-    ('U'),
-    ('V'),
-    ('W'),
-    ('X'),
-    ('Y'),
-    ('Z');
+CREATE OR REPLACE FUNCTION generate_users() RETURNS 
+VOID AS 
+$$
+BEGIN
+	FOR i IN 1..5000 LOOP
+	    INSERT INTO "user" ( name ) VALUES ( CONCAT('username', i) ) ;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql; 
+
+SELECT generate_users();
 
 SELECT generate_api_calls();
