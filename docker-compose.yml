@@ -1,0 +1,66 @@
+version: '3'
+services:
+  app:
+    container_name: app
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    build:
+      context: .
+      dockerfile: dockerfiles/app.Dockerfile
+    environment:
+      POSTGRES_PASSWORD: docker-password
+      POSTGRES_USER: docker-user
+      POSTGRES_DB: docker-test
+      POSTGRES_PORT: 5432
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      STAGE: dev
+    networks:
+      - network-docker
+  db:
+    container_name: db
+    build:
+      context: .
+      dockerfile: dockerfiles/db.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    expose:
+      - 5432
+    environment:
+      POSTGRES_PASSWORD: docker-password
+      POSTGRES_USER: docker-user
+      POSTGRES_DB: docker-test
+    networks:
+      - network-docker
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U docker-user -d docker-test" ]
+      interval: 5s
+      retries: 5
+      start_period: 10s
+  minio:
+    container_name: minio
+    image: "minio/minio:latest"
+    entrypoint: >
+      /bin/sh -c " mkdir /data/user-history; minio server /data --console-address 0.0.0.0:9001; "
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    expose:
+      - 9000
+      - 9001
+    environment:
+      MINIO_ROOT_USER: "minioadmin"
+      MINIO_ROOT_PASSWORD: "minioadmin"
+    volumes:
+      - /var/lib/minio/:/data
+    networks:
+      - network-docker
+
+networks:
+  network-docker:
+    driver: bridge
