@@ -26,7 +26,6 @@ services:
     build:
       context: .
       dockerfile: dockerfiles/db.Dockerfile
-    #shm_size: 1g
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -39,7 +38,11 @@ services:
     networks:
       - network-docker
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U docker-user -d docker-test -h localhost" ]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U docker-user -d docker-test -h localhost"
+        ]
       interval: 5s
       retries: 5
       start_period: 10s

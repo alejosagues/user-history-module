@@ -61,7 +61,7 @@ func connectToDB() (*sql.DB, error) {
 }
 
 func main() {
-	fmt.Println("Started user-history-module execution at ", time.Now().UTC().Format(DATE_FORMAT))
+	fmt.Println("Started user-history-module execution at", time.Now().UTC().Format(DATE_FORMAT))
 	db, err := connectToDB()
 
 	if err != nil {
@@ -122,7 +122,7 @@ func saveApiCallsFilesForAllUsers(userRows *sql.Rows, db *sql.DB, s3Client *s3.C
 		return
 	}
 
-	fmt.Println("Ended user-history-module execution at ", time.Now().UTC().Format(DATE_FORMAT))
+	fmt.Println("Ended user-history-module execution at", time.Now().UTC().Format(DATE_FORMAT))
 }
 
 func saveApiCallsFileForUser(user User, wg *sync.WaitGroup, db *sql.DB, s3Client *s3.Client) {
